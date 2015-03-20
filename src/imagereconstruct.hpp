@@ -5,8 +5,8 @@
 #include <queue>
 
 struct Pixel {
-	int x;
-	int y;
+	int row;
+	int col;
 };
 
 template<typename T> void ImageReconstruct(cv::Mat& marker, cv::Mat& mask);

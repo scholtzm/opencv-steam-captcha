@@ -95,7 +95,7 @@ template<typename T> void ImageReconstruct(Mat& marker, Mat& mask)
 				if(i == 0 && k == 0)
 					continue;
 
-				PropagationStep<T>(tempMarkerImage, tempMaskImage, pixel.x, pixel.y, i, k, queue);
+				PropagationStep<T>(tempMarkerImage, tempMaskImage, pixel.row, pixel.col, i, k, queue);
 			}
 		}
 	}
