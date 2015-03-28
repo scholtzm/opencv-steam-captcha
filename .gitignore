@@ -2,5 +2,7 @@
 Debug
 
 # Individual files
+.DS_Store
+*.xcodeproj
 .project
 .cproject

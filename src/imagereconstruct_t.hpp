@@ -8,12 +8,8 @@ template<typename T> void ImageReconstruct(Mat& marker, Mat& mask)
 {
 	queue<Pixel> queue;
 
-	int offset = 4; // arbitrary value?
-	Scalar scalar;
-	scalar.val[0] = 0;
-	scalar.val[1] = 0;
-	scalar.val[2] = 0;
-	scalar.val[3] = 0;
+	int offset = 4;
+	Scalar scalar = Scalar(0);
 
 	Mat tempMarkerImage = Mat(marker.rows + 2 * offset, marker.cols + 2 * offset, marker.depth());
 	copyMakeBorder(marker, tempMarkerImage, offset, offset, offset, offset, BORDER_CONSTANT, scalar);
