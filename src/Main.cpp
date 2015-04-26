@@ -14,20 +14,10 @@ using namespace std;
 using namespace cv;
 namespace fs = boost::filesystem;
 
-int dynamicThreshold = 100;
-string windowName = "Steam Captcha Breaker";
-Mat sourceImage, finalImage, histImage;
+Mat sourceImage, finalImage, histImage, tmp;
 Mat hist;
 
-bool compareContours(vector<Point> a, vector<Point> b);
-void applyThreshold(int, void*);
-void createHistogram(int threshold);
-
-bool compareContours(vector<Point> a, vector<Point> b) {
-	return contourArea(a) > contourArea(b);
-}
-
-void createHistogram(Mat& src, int threshold) {
+void createHistogram(Mat& src) {
     int histSize = 256;
     float range[] = { 0, 256 };
     const float *ranges[] = { range };
@@ -47,8 +37,6 @@ void createHistogram(Mat& src, int threshold) {
              Point(widthBucket * i, histHeight - cvRound(hist.at<float>(i))),
              Scalar(255, 255, 255), 1);
     }
-    
-    line(histImage, Point(widthBucket * threshold, 0), Point(widthBucket * threshold, histHeight - 1), Scalar(0, 255, 0), 1);
 }
 
 int* horizontalSegments(Mat& src) {
@@ -62,7 +50,7 @@ int* horizontalSegments(Mat& src) {
                 seg[i]++;
         }
     }
-
+    
     return seg;
 }
 
@@ -140,111 +128,133 @@ vector<pair<int, int> > createSegmentPairs(int* seg, int segSize) {
     return pairs;
 }
 
-void applyThreshold(int, void*) {
-    threshold(sourceImage, finalImage, dynamicThreshold, 255, THRESH_BINARY);
+vector<pair<int, int> > filterVerticalPairs(vector<pair<int, int> > verticalPairs) {
+    vector<pair<int, int> > new_pairs;
     
-    createHistogram(sourceImage, dynamicThreshold);
+    int biggest = 0, index = 0;
     
-    imshow("Histogram", histImage);
-    imshow(windowName, finalImage);
+    for(int i = 0; i < verticalPairs.size(); i++) {
+        int current = verticalPairs[i].second - verticalPairs[i].first;
+        
+        if(current > biggest) {
+            index = i;
+        }
+    }
+    
+    new_pairs.push_back(make_pair(verticalPairs[index].first, verticalPairs[index].second));
+    
+    return new_pairs;
 }
 
-Mat applyCanny(Mat& src, int threshold) {
-    Mat edges, tmp;
+vector<pair<int, int> > filterHorizontalPairs(vector<pair<int, int> > horizontalPairs, int segSize) {
+    int MAGIC_DIFF = 10;
+    int MAGIC_SIZE = 10;
     
-    Canny(src, edges, threshold, threshold * 3, 3);
+    vector<pair<int, int> > new_pairs;
     
-    src.copyTo(tmp, edges);
-    tmp.copyTo(src);
+    int* seg = (int*) calloc(segSize, sizeof(int));
     
-    edges.release();
-    tmp.release();
+    for(int i = 0; i < horizontalPairs.size(); i++) {
+        int size = horizontalPairs[i].second - horizontalPairs[i].first;
+        
+        // Too small
+        if(size < MAGIC_SIZE) {
+            // Check right side
+            if(i < horizontalPairs.size() - 1 && horizontalPairs.size() > 1) {
+                if(horizontalPairs[i + 1].first - horizontalPairs[i].second < MAGIC_DIFF) {
+                    for(int k = horizontalPairs[i].first; k <= horizontalPairs[i + 1].second; k++)
+                        seg[k] = 1;
+                }
+                // Check left side
+            } else if(i > 0 && horizontalPairs.size() > 1) {
+                if(horizontalPairs[i].first - horizontalPairs[i - 1].second < MAGIC_DIFF) {
+                    for(int k = horizontalPairs[i - 1].first; k <= horizontalPairs[i].second; k++)
+                        seg[k] = 1;
+                }
+            }
+            // This one is large enough
+        } else {
+            for(int k = horizontalPairs[i].first; k <= horizontalPairs[i].second; k++)
+                seg[k] = 1;
+        }
+    }
     
-    return src;
+    return createSegmentPairs(seg, segSize);
 }
 
 int main(int argc, char** argv) {
-	const int BYTES_PER_PIXEL = 1;
-	const int RESIZE_FACTOR = 2;
-	const string DATA_PATH = "/Users/Mike/Documents/Eclipse Workspace/SCB3/data/";
-
-	int total = 0;
-	int success = 0;
-
-	fs::path folder(DATA_PATH);
-
-	if(!exists(folder))
-		return -1;
-
-	fs::directory_iterator endItr;
-	for(fs::directory_iterator itr(folder); itr != endItr; itr++) {
-		string fullPath = itr->path().string();
-		string fileName = itr->path().filename().string();
-
-		// Skip all dot files
-		if(fileName[0] == '.')
-			continue;
-
-		// Retrieve captcha string
-		string captchaCode = boost::replace_all_copy(fileName, ".png", "");
-		boost::replace_all(captchaCode, "at", "@");
-		boost::replace_all(captchaCode, "pct", "%");
-		boost::replace_all(captchaCode, "and", "&");
-
-		total++;
-		cout << total << ".) file: " << fileName << ", code: " << captchaCode;
-
-		// Load our base image
-		sourceImage = imread(fullPath, CV_LOAD_IMAGE_GRAYSCALE);
+    const int RESIZE_FACTOR = 2;
+    const string DATA_PATH = "/Users/Mike/Documents/Eclipse Workspace/SCB3/data/";
+    
+    int total = 0;
+    
+    fs::path folder(DATA_PATH);
+    
+    if(!exists(folder))
+        return -1;
+    
+    fs::directory_iterator endItr;
+    for(fs::directory_iterator itr(folder); itr != endItr; itr++) {
+        string fullPath = itr->path().string();
+        string fileName = itr->path().filename().string();
         
-		// Is it loaded?
-		if(!sourceImage.data)
-			return -1;
+        // Skip all dot files
+        if(fileName[0] == '.')
+            continue;
         
+        // Retrieve captcha string
+        string captchaCode = boost::replace_all_copy(fileName, ".png", "");
+        boost::replace_all(captchaCode, "at", "@");
+        boost::replace_all(captchaCode, "pct", "%");
+        boost::replace_all(captchaCode, "and", "&");
+        
+        total++;
+        cout << total << ".) file: " << fileName << ", code: " << captchaCode << endl;
+        
+        // Load our base image
+        sourceImage = imread(fullPath, CV_LOAD_IMAGE_GRAYSCALE);
+        
+        // Is it loaded?
+        if(!sourceImage.data)
+            return -1;
+        
+        // Resize the image 2x
         resize(sourceImage, sourceImage, Size(sourceImage.cols * RESIZE_FACTOR, sourceImage.rows * RESIZE_FACTOR));
-        // Normalize our image
-        normalize(finalImage, finalImage, 0, 255, NORM_MINMAX, CV_8U);
-
-		// Define our final image
-		finalImage = sourceImage.clone();
+        
+        // Define our final image
+        finalImage = sourceImage.clone();
         
         // Apply adaptive threshold
         adaptiveThreshold(finalImage, finalImage, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 3, 1);
         
-        Mat tmp;
+        // Use the thresholded image as a mask
         sourceImage.copyTo(tmp, finalImage);
         tmp.copyTo(finalImage);
         
+        // Normalize new image
         normalize(finalImage, finalImage, 0, 255, NORM_MINMAX, CV_8U);
         
-		// Let's apply image reconstruction
-//		finalImage -= 30;
-//		ImageReconstruct<unsigned char>(finalImage, sourceImage);
+        // Let's calculate histogram for our image
+        createHistogram(finalImage);
         
-//        imshow("Test", (sourceImage - finalImage) * 1);
-
-		// Let's calculate histogram for our image
-        createHistogram(finalImage, dynamicThreshold);
-
-	    int thresholdValueLow = 0;
-	    for(int i = 0; i < 256; i++) {
-	    	if(cvRound(hist.at<float>(i)) > 10) {
-	    		thresholdValueLow = i;
-#if SMOKETEST == 0
-                cout << "LOW: " << thresholdValueLow << endl;
-#endif
-	    	}
-	    }
-
-	    // Calculate final threshold value
-	    int thresholdValue = thresholdValueLow + (int)((255 - thresholdValueLow) / 10 * 4);
+        // Get lower bound of our threshold value
+        int thresholdValueLow = 0;
+        for(int i = 0; i < 256; i++) {
+            if(cvRound(hist.at<float>(i)) > 4) {
+                thresholdValueLow = i;
+            }
+        }
         
-#if SMOKETEST == 0
-        cout << "THRESH: " << thresholdValue << endl;
-#endif
+        // Calculate final threshold value
+        int thresholdValue = thresholdValueLow + (int)((255 - thresholdValueLow) / 10 * 4);
         
-		// Apply threshold
-		threshold(finalImage, finalImage, thresholdValue, 255, THRESH_BINARY);
+        // Apply threshold
+        threshold(finalImage, finalImage, thresholdValue, 255, THRESH_BINARY);
+        
+        // Apply dilation and erosion
+        Mat element = getStructuringElement(MORPH_ELLIPSE, Size(5, 5));
+        dilate(finalImage, finalImage, element);
+        erode(finalImage, finalImage, element);
         
         // Segments
         int* segH = horizontalSegments(finalImage);
@@ -254,86 +264,28 @@ int main(int argc, char** argv) {
         Mat segVImage = drawVerticalSegments(segV, finalImage.rows, finalImage.cols);
         
         // Let's draw the rectangles
-        vector<pair<int, int> > verticalPairs = createSegmentPairs(segV, finalImage.rows);
-        vector<pair<int, int> > horizontalPairs = createSegmentPairs(segH, finalImage.cols);
+        vector<pair<int, int> > verticalPairs = filterVerticalPairs(createSegmentPairs(segV, finalImage.rows));
+        vector<pair<int, int> > horizontalPairs = filterHorizontalPairs(createSegmentPairs(segH, finalImage.cols), finalImage.cols);
         
         for(vector<pair<int, int> >::iterator itV = verticalPairs.begin(); itV != verticalPairs.end(); itV++) {
             for(vector<pair<int, int> >::iterator itH = horizontalPairs.begin(); itH != horizontalPairs.end(); itH++) {
                 rectangle(finalImage, Point(itH->first, itV->first), Point(itH->second, itV->second), Scalar(255));
             }
         }
-
-//		// Let's find contours
-//		vector<vector<Point> > contours;
-//		Mat contourImage = finalImage.clone();
-//		findContours(contourImage, contours, CV_RETR_TREE, CV_CHAIN_APPROX_NONE);
-//
-//		// Sort them by size
-//		sort(contours.begin(), contours.end(), compareContours);
-//
-//		// Hide noise by filling it with black color
-//        int contourCount = MIN((int) contours.size(), 6);
-//            if(contours.size() > contourCount) {
-//                for(int contourIndex = contourCount; contourIndex < contours.size(); contourIndex++) {
-//                    drawContours(finalImage, contours, contourIndex, Scalar(0), CV_FILLED);
-//                }
-//        }
-
-		// Initiate tesseract
-		tesseract::TessBaseAPI tess;
-		tess.Init(NULL, "eng", tesseract::OEM_DEFAULT);
-		tess.SetVariable("tessedit_char_whitelist", "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ@%&");
-		tess.SetImage((uchar *) finalImage.data, finalImage.cols, finalImage.rows, BYTES_PER_PIXEL, BYTES_PER_PIXEL * finalImage.cols);
-
-		// Retrieve the result and remove all spaces
-		string result(tess.GetUTF8Text());
-		result.erase(remove_if(result.begin(), result.end(), ::isspace), result.end());
-
-		cout << ", result: " << result;
-
-		if(captchaCode == result) {
-			cout << " - TRUE" << endl;
-			success++;
-		} else {
-			cout << " - FALSE" << endl;
-		}
-
-		// Resize back
-//		resize(sourceImage, sourceImage, Size(sourceImage.cols / RESIZE_FACTOR, sourceImage.rows / RESIZE_FACTOR));
-//		resize(finalImage, finalImage, Size(finalImage.cols / RESIZE_FACTOR, finalImage.rows / RESIZE_FACTOR));
-
-#if SMOKETEST == 0
-//        namedWindow(windowName);
-//        finalImage.copyTo(sourceImage);
-//        
-//        createTrackbar("Value", windowName, &dynamicThreshold, 255, applyThreshold);
-//        
-//        applyThreshold(0, 0);
-//        
-//        while(true)
-//        {
-//            int c;
-//            c = waitKey();
-//            if((char)c == 27) break;
-//        }
         
         imshow("Final image", finalImage);
-        imshow("HSeg", segHImage);
-        imshow("VSeg", segVImage);
+        //        imshow("HSeg", segHImage);
+        //        imshow("VSeg", segVImage);
+        imshow("Histogram", histImage);
         waitKey();
-#endif
-
-		sourceImage.release();
-		finalImage.release();
-//		contourImage.release();
-//		contours.clear();
-
+        
+        sourceImage.release();
+        finalImage.release();
+        tmp.release();
 #if SMOKETEST == 0
-		if(total == 10) break;
+        if(total == 10) break;
 #endif
-	}
-
-	cout << "Success rate: " << ((double)success/(double)total)*100 << "% (" << success << "/" << total << ")." << endl;
-
-	return 0;
+    }
+    
+    return 0;
 }
