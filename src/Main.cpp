@@ -17,6 +17,13 @@ namespace fs = boost::filesystem;
 Mat sourceImage, finalImage, histImage, tmp;
 Mat hist;
 
+struct Square {
+    int x;
+    int y;
+    int width;
+    int height;
+};
+
 void createHistogram(Mat& src) {
     int histSize = 256;
     float range[] = { 0, 256 };
@@ -138,6 +145,7 @@ vector<pair<int, int> > filterVerticalPairs(vector<pair<int, int> > verticalPair
         
         if(current > biggest) {
             index = i;
+            biggest = current;
         }
     }
     
@@ -148,7 +156,7 @@ vector<pair<int, int> > filterVerticalPairs(vector<pair<int, int> > verticalPair
 
 vector<pair<int, int> > filterHorizontalPairs(vector<pair<int, int> > horizontalPairs, int segSize) {
     int MAGIC_DIFF = 10;
-    int MAGIC_SIZE = 10;
+    int MAGIC_SIZE = 12;
     
     vector<pair<int, int> > new_pairs;
     
@@ -165,14 +173,16 @@ vector<pair<int, int> > filterHorizontalPairs(vector<pair<int, int> > horizontal
                     for(int k = horizontalPairs[i].first; k <= horizontalPairs[i + 1].second; k++)
                         seg[k] = 1;
                 }
-                // Check left side
-            } else if(i > 0 && horizontalPairs.size() > 1) {
+            }
+            
+            // Check left side
+            if(i > 0 && horizontalPairs.size() > 1) {
                 if(horizontalPairs[i].first - horizontalPairs[i - 1].second < MAGIC_DIFF) {
                     for(int k = horizontalPairs[i - 1].first; k <= horizontalPairs[i].second; k++)
                         seg[k] = 1;
                 }
             }
-            // This one is large enough
+        // This one is large enough
         } else {
             for(int k = horizontalPairs[i].first; k <= horizontalPairs[i].second; k++)
                 seg[k] = 1;
@@ -180,6 +190,108 @@ vector<pair<int, int> > filterHorizontalPairs(vector<pair<int, int> > horizontal
     }
     
     return createSegmentPairs(seg, segSize);
+}
+
+vector<pair<int, int> > splitLarge(vector<pair<int, int> > horizontalSegments) {
+    int MAGIC_SIZE = 50;
+    
+    vector<pair<int, int> > new_pairs;
+    
+    for(int i = 0; i < horizontalSegments.size(); i++) {
+        int size = horizontalSegments[i].second - horizontalSegments[i].first;
+        
+        if(size > MAGIC_SIZE) {
+            int f1 = horizontalSegments[i].first;
+            int s1 = (int)((horizontalSegments[i].second - horizontalSegments[i].first) / 2) + horizontalSegments[i].first;
+            int f2 = (int)((horizontalSegments[i].second - horizontalSegments[i].first) / 2) + horizontalSegments[i].first + 2;
+            int s2 = horizontalSegments[i].second;
+            
+            new_pairs.push_back(make_pair(f1, s1));
+            new_pairs.push_back(make_pair(f2, s2));
+        } else {
+            new_pairs.push_back(horizontalSegments[i]);
+        }
+    }
+    
+    return new_pairs;
+}
+
+void drawSegmentRectangles(Mat& image, vector<pair<int, int> > verticalPairs, vector<pair<int, int> > horizontalPairs) {
+    for(vector<pair<int, int> >::iterator itV = verticalPairs.begin(); itV != verticalPairs.end(); itV++) {
+        for(vector<pair<int, int> >::iterator itH = horizontalPairs.begin(); itH != horizontalPairs.end(); itH++) {
+            rectangle(image, Point(itH->first, itV->first), Point(itH->second, itV->second), Scalar(255));
+        }
+    }
+}
+
+vector<Square> getSquares(vector<pair<int, int> > verticalPairs, vector<pair<int, int> > horizontalPairs) {
+    vector<Square> squares;
+    
+    for(vector<pair<int, int> >::iterator itV = verticalPairs.begin(); itV != verticalPairs.end(); itV++) {
+        for(vector<pair<int, int> >::iterator itH = horizontalPairs.begin(); itH != horizontalPairs.end(); itH++) {
+            squares.push_back({ itH->first, itV->first, itH->second - itH->first, itV->second - itV->first });
+        }
+    }
+    
+    return squares;
+}
+
+// image must be a binary image
+vector<Square> shrinkSquares(Mat& image, vector<Square> squares) {
+    vector<Square> new_squares;
+    
+    for(int i = 0; i < squares.size(); i++) {
+        int top = -1, bottom = 0, left = 9999, right = -1;
+        Mat tmp2 = image(Rect(squares[i].x, squares[i].y, squares[i].width, squares[i].height));
+        Mat tmp = tmp2.clone();
+        
+        for(int y = 0; y < tmp.rows; y++) {
+            for(int x = 0; x < tmp.cols; x++) {
+                int pixel = tmp.data[x + y * tmp.cols];
+                
+                if(pixel) {
+                    tmp.data[x + y * tmp.cols] = 127;
+                    if(top == -1) top = y; // store the lowest value
+                    if(left > x) left = x;
+                    bottom = y; // y will be always incremented, we just store the highest value
+                    if(right < x) right = x;
+                }
+            }
+        }
+        
+        top -= 1;
+        left -= 1;
+        bottom += 1;
+        right += 1;
+        
+        new_squares.push_back({ squares[i].x + left, squares[i].y + top, right - left, bottom - top });
+        tmp.release();
+        tmp2.release();
+    }
+    
+    return new_squares;
+}
+
+bool compareSquares(Square a, Square b) {
+    return a.width * a.height > b.width * b.height;
+}
+
+vector<Square> takeSquares(vector<Square> squares, int number) {
+    vector<Square> new_squares;
+    
+    sort(squares.begin(), squares.end(), compareSquares);
+    int min = MIN(number, (int)squares.size());
+    
+    for(int i = 0; i < min; i++) {
+        new_squares.push_back(squares[i]);
+    }
+    
+    return new_squares;
+}
+
+void drawSquares(Mat& image, vector<Square> squares) {
+    for(int i = 0; i < squares.size(); i++)
+        rectangle(image, Point(squares[i].x, squares[i].y), Point(squares[i].x + squares[i].width, squares[i].y + squares[i].height), Scalar(255));
 }
 
 int main(int argc, char** argv) {
@@ -263,17 +375,19 @@ int main(int argc, char** argv) {
         Mat segHImage = drawHorizontalSegments(segH, finalImage.rows, finalImage.cols);
         Mat segVImage = drawVerticalSegments(segV, finalImage.rows, finalImage.cols);
         
-        // Let's draw the rectangles
+        // Create pairs
         vector<pair<int, int> > verticalPairs = filterVerticalPairs(createSegmentPairs(segV, finalImage.rows));
-        vector<pair<int, int> > horizontalPairs = filterHorizontalPairs(createSegmentPairs(segH, finalImage.cols), finalImage.cols);
+        vector<pair<int, int> > horizontalPairs = splitLarge(filterHorizontalPairs(createSegmentPairs(segH, finalImage.cols), finalImage.cols));
         
-        for(vector<pair<int, int> >::iterator itV = verticalPairs.begin(); itV != verticalPairs.end(); itV++) {
-            for(vector<pair<int, int> >::iterator itH = horizontalPairs.begin(); itH != horizontalPairs.end(); itH++) {
-                rectangle(finalImage, Point(itH->first, itV->first), Point(itH->second, itV->second), Scalar(255));
-            }
-        }
+        // Get segment squares
+        vector<Square> squares = takeSquares(shrinkSquares(finalImage, getSquares(verticalPairs, horizontalPairs)), 6);
+        
+        // Let's draw the rectangles
+        drawSquares(finalImage, squares);
+        drawSquares(sourceImage, squares);
         
         imshow("Final image", finalImage);
+        imshow("Source image", sourceImage);
         //        imshow("HSeg", segHImage);
         //        imshow("VSeg", segVImage);
         imshow("Histogram", histImage);
