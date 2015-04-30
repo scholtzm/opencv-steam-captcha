@@ -18,6 +18,7 @@ Mat sourceImage, finalImage, histImage, tmp;
 Mat hist;
 
 struct Square {
+    int id; // position in the string
     int x;
     int y;
     int width;
@@ -155,8 +156,8 @@ vector<pair<int, int> > filterVerticalPairs(vector<pair<int, int> > verticalPair
 }
 
 vector<pair<int, int> > filterHorizontalPairs(vector<pair<int, int> > horizontalPairs, int segSize) {
-    int MAGIC_DIFF = 10;
-    int MAGIC_SIZE = 12;
+    const int MAGIC_DIFF = 10;
+    const int MAGIC_SIZE = 12;
     
     vector<pair<int, int> > new_pairs;
     
@@ -182,7 +183,7 @@ vector<pair<int, int> > filterHorizontalPairs(vector<pair<int, int> > horizontal
                         seg[k] = 1;
                 }
             }
-        // This one is large enough
+            // This one is large enough
         } else {
             for(int k = horizontalPairs[i].first; k <= horizontalPairs[i].second; k++)
                 seg[k] = 1;
@@ -193,7 +194,7 @@ vector<pair<int, int> > filterHorizontalPairs(vector<pair<int, int> > horizontal
 }
 
 vector<pair<int, int> > splitLarge(vector<pair<int, int> > horizontalSegments) {
-    int MAGIC_SIZE = 50;
+    const int MAGIC_SIZE = 50;
     
     vector<pair<int, int> > new_pairs;
     
@@ -226,10 +227,11 @@ void drawSegmentRectangles(Mat& image, vector<pair<int, int> > verticalPairs, ve
 
 vector<Square> getSquares(vector<pair<int, int> > verticalPairs, vector<pair<int, int> > horizontalPairs) {
     vector<Square> squares;
+    int id = 0;
     
     for(vector<pair<int, int> >::iterator itV = verticalPairs.begin(); itV != verticalPairs.end(); itV++) {
         for(vector<pair<int, int> >::iterator itH = horizontalPairs.begin(); itH != horizontalPairs.end(); itH++) {
-            squares.push_back({ itH->first, itV->first, itH->second - itH->first, itV->second - itV->first });
+            squares.push_back({ id++, itH->first, itV->first, itH->second - itH->first, itV->second - itV->first });
         }
     }
     
@@ -264,7 +266,7 @@ vector<Square> shrinkSquares(Mat& image, vector<Square> squares) {
         bottom += 1;
         right += 1;
         
-        new_squares.push_back({ squares[i].x + left, squares[i].y + top, right - left, bottom - top });
+        new_squares.push_back({ squares[i].id, squares[i].x + left, squares[i].y + top, right - left, bottom - top });
         tmp.release();
         tmp2.release();
     }
@@ -272,19 +274,25 @@ vector<Square> shrinkSquares(Mat& image, vector<Square> squares) {
     return new_squares;
 }
 
-bool compareSquares(Square a, Square b) {
+bool compareSquaresBySize(Square a, Square b) {
     return a.width * a.height > b.width * b.height;
+}
+
+bool compareSquaresById(Square a, Square b) {
+    return a.id < b.id;
 }
 
 vector<Square> takeSquares(vector<Square> squares, int number) {
     vector<Square> new_squares;
     
-    sort(squares.begin(), squares.end(), compareSquares);
+    sort(squares.begin(), squares.end(), compareSquaresBySize);
     int min = MIN(number, (int)squares.size());
     
     for(int i = 0; i < min; i++) {
         new_squares.push_back(squares[i]);
     }
+    
+    sort(new_squares.begin(), new_squares.end(), compareSquaresById);
     
     return new_squares;
 }
@@ -294,15 +302,77 @@ void drawSquares(Mat& image, vector<Square> squares) {
         rectangle(image, Point(squares[i].x, squares[i].y), Point(squares[i].x + squares[i].width, squares[i].y + squares[i].height), Scalar(255));
 }
 
+void saveSquares(Mat& image, vector<Square> squares, string output_folder, string code, map<string, int>& counter) {
+    for(int i = 0; i < squares.size(); i++) {
+        Mat tmp = image(Rect(squares[i].x, squares[i].y, squares[i].width, squares[i].height));
+        Mat tmp2 = tmp.clone();
+        
+        string letter(1, code[i]);
+        
+        string sub = letter;
+        boost::replace_all(sub, "@", "at");
+        boost::replace_all(sub, "%", "pct");
+        boost::replace_all(sub, "&", "and");
+        
+        string filename = output_folder + sub + "/" + to_string(counter[letter]) + ".png";
+        counter[letter]++;
+        
+        resize(tmp2, tmp2, Size(50, 50));
+        
+        imwrite(filename, tmp2);
+        
+        tmp.release();
+        tmp2.release();
+    }
+}
+
+bool createFolderStructure(string output_folder) {
+    std::vector<string> strings = {
+        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+        "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
+        "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
+        "U", "V", "W", "X", "Y", "Z", "at", "and", "pct"
+    };
+    
+    fs::path folder(output_folder);
+    if(!exists(folder) && !fs::create_directory(folder))
+        return false;
+    
+    for(int i = 0; i < strings.size(); i++) {
+        fs::path dir(output_folder + strings[i]);
+        
+        if(exists(dir))
+            continue;
+        
+        if(!fs::create_directory(dir))
+            return false;
+    }
+    
+    return true;
+}
+
 int main(int argc, char** argv) {
     const int RESIZE_FACTOR = 2;
     const string DATA_PATH = "/Users/Mike/Documents/Eclipse Workspace/SCB3/data/";
+    const string OUTPUT_PATH = "/Users/Mike/Documents/Eclipse Workspace/SCB3/output/";
+    const string ALLOWED_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ@&%";
     
     int total = 0;
     
-    fs::path folder(DATA_PATH);
+    // Initialize character counters
+    map<string, int> counter;
+    for(int i = 0; i < ALLOWED_CHARS.length(); i++) {
+        string letter(1, ALLOWED_CHARS[i]);
+        counter[letter] = 0;
+    }
     
+    // Check if data folder exists
+    fs::path folder(DATA_PATH);
     if(!exists(folder))
+        return -1;
+    
+    // Create output folder structure
+    if(!createFolderStructure(OUTPUT_PATH))
         return -1;
     
     fs::directory_iterator endItr;
@@ -330,7 +400,7 @@ int main(int argc, char** argv) {
         if(!sourceImage.data)
             return -1;
         
-        // Resize the image 2x
+        // Resize the image by resize factor
         resize(sourceImage, sourceImage, Size(sourceImage.cols * RESIZE_FACTOR, sourceImage.rows * RESIZE_FACTOR));
         
         // Define our final image
@@ -363,8 +433,8 @@ int main(int argc, char** argv) {
         // Apply threshold
         threshold(finalImage, finalImage, thresholdValue, 255, THRESH_BINARY);
         
-        // Apply dilation and erosion
-        Mat element = getStructuringElement(MORPH_ELLIPSE, Size(5, 5));
+        // Morphological opening
+        Mat element = getStructuringElement(MORPH_ELLIPSE, Size(3, 3));
         dilate(finalImage, finalImage, element);
         erode(finalImage, finalImage, element);
         
@@ -381,6 +451,9 @@ int main(int argc, char** argv) {
         
         // Get segment squares
         vector<Square> squares = takeSquares(shrinkSquares(finalImage, getSquares(verticalPairs, horizontalPairs)), 6);
+        
+        // Save the squares
+        saveSquares(finalImage, squares, OUTPUT_PATH, captchaCode, counter);
         
         // Let's draw the rectangles
         drawSquares(finalImage, squares);
