@@ -8,8 +8,6 @@
 
 #include "imagereconstruct.hpp"
 
-#define SMOKETEST 0
-
 using namespace std;
 using namespace cv;
 namespace fs = boost::filesystem;
@@ -317,7 +315,7 @@ void saveSquares(Mat& image, vector<Square> squares, string output_folder, strin
         string filename = output_folder + sub + "/" + to_string(counter[letter]) + ".png";
         counter[letter]++;
         
-        resize(tmp2, tmp2, Size(50, 50));
+        resize(tmp2, tmp2, Size(32, 48));
         
         imwrite(filename, tmp2);
         
@@ -391,7 +389,7 @@ int main(int argc, char** argv) {
         boost::replace_all(captchaCode, "and", "&");
         
         total++;
-        cout << total << ".) file: " << fileName << ", code: " << captchaCode << endl;
+        //cout << total << ".) file: " << fileName << ", code: " << captchaCode << endl;
         
         // Load our base image
         sourceImage = imread(fullPath, CV_LOAD_IMAGE_GRAYSCALE);
@@ -453,26 +451,174 @@ int main(int argc, char** argv) {
         vector<Square> squares = takeSquares(shrinkSquares(finalImage, getSquares(verticalPairs, horizontalPairs)), 6);
         
         // Save the squares
-        saveSquares(finalImage, squares, OUTPUT_PATH, captchaCode, counter);
+        saveSquares(sourceImage, squares, OUTPUT_PATH, captchaCode, counter);
         
         // Let's draw the rectangles
         drawSquares(finalImage, squares);
         drawSquares(sourceImage, squares);
         
-        imshow("Final image", finalImage);
-        imshow("Source image", sourceImage);
+//        imshow("Final image", finalImage);
+//        imshow("Source image", sourceImage);
         //        imshow("HSeg", segHImage);
         //        imshow("VSeg", segVImage);
-        imshow("Histogram", histImage);
-        waitKey();
+//        imshow("Histogram", histImage);
+        //waitKey();
         
         sourceImage.release();
         finalImage.release();
         tmp.release();
-#if SMOKETEST == 0
-        if(total == 10) break;
-#endif
+        
+        if(total == 1000)
+            break;
     }
+
+    int sampleSize = 25;
+    
+    Mat trainingData(sampleSize * 2, 32 * 48, CV_32FC1);
+    Mat classLabels(sampleSize * 2, 1, CV_32FC1);
+    
+    for(int i = 0; i < sampleSize; i++) {
+        Mat posImage = imread(OUTPUT_PATH + "G/" + to_string(i) + ".png", CV_LOAD_IMAGE_GRAYSCALE);
+        if (!posImage.data)
+            break;
+        
+        for(int j = 0; j < posImage.rows; j++)
+            for(int k = 0; k < posImage.cols; k++)
+                trainingData.at<float>(i * 2, j * posImage.cols + k) = ((float) posImage.at<unsigned char>(j, k)) / 255.0;
+        
+        classLabels.at<float>(i * 2, 0) = 1.0;
+        
+        Mat negImage = imread(OUTPUT_PATH + "Y/" + to_string(i) + ".png", CV_LOAD_IMAGE_GRAYSCALE);
+        if (!negImage.data)
+            break;
+        
+        for(int j = 0; j < negImage.rows; j++)
+            for(int k = 0; k < negImage.cols; k++)
+                trainingData.at<float>(i * 2 + 1, j * negImage.cols + k) = ((float) negImage.at<unsigned char>(j, k)) / 255.0;
+        
+        classLabels.at<float>(i * 2 + 1, 0) = -1.0;
+        
+        posImage.release();
+        negImage.release();
+    }
+   
+    CvSVMParams params;
+    params.svm_type = CvSVM::C_SVC;
+    params.kernel_type = CvSVM::LINEAR;
+    params.term_crit = cvTermCriteria(CV_TERMCRIT_ITER, 100, 1e-6);
+    
+    CvSVM SVM;
+    SVM.train(trainingData, classLabels, Mat(), Mat(), params);
+    SVM.save((OUTPUT_PATH + "svm_data.dat").c_str());
+    
+    for(int i = 25; i < 29; i++) {
+        Mat letterImage = imread(OUTPUT_PATH + "G/" + to_string(i) + ".png", CV_LOAD_IMAGE_GRAYSCALE);
+        
+        float *f = (float *) malloc(32 * 48 * sizeof(float));
+
+        for(int j = 0; j < letterImage.rows; j++)
+            for(int k = 0; k < letterImage.cols; k++)
+                f[j * letterImage.cols + k] = ((float) letterImage.at<unsigned char>(j, k)) / 255.0;
+        
+        Mat testSample(1, 32 * 48, CV_32FC1, f);
+        
+        float result = SVM.predict(testSample);
+        
+        cout << "Predikcia: " << result << endl;
+        
+        free(f);
+        letterImage.release();
+    }
+    
+    
+//    // HoG and SVM
+//    vector<vector<float> > features;
+//    vector<float> classes;
+//    
+//    int sampleSize = 25;
+//    
+//    for(int i = 0; i < sampleSize; i++) {
+//        HOGDescriptor hog;
+//        hog.winSize = Size(32, 48);
+//        
+//        vector<float> featureVector;
+//        vector<float> featureVector2;
+//        
+//        Mat posImage = imread(OUTPUT_PATH + "G/" + to_string(i) + ".png", CV_LOAD_IMAGE_GRAYSCALE);
+//        if (!posImage.data)
+//            break;
+//        hog.compute(posImage, featureVector, Size(8, 8), Size(0, 0));
+//        features.push_back(featureVector);
+//        classes.push_back(1.0);
+//        
+//        Mat negImage = imread(OUTPUT_PATH + "Y/" + to_string(i) + ".png", CV_LOAD_IMAGE_GRAYSCALE);
+//        if (!negImage.data)
+//            break;
+//        hog.compute(negImage, featureVector2, Size(8, 8), Size(0, 0));
+//        features.push_back(featureVector2);
+//        classes.push_back(-1.0);
+//    }
+//    
+//    float **featuresArray;
+//    featuresArray = (float **) malloc(sampleSize * 2 * sizeof(float *));
+//    for (int i = 0; i < sampleSize * 2; i++)
+//        featuresArray[i] = (float *) malloc(540 *sizeof(float));
+//    
+//    for(int i = 0; i < features.size(); i++) {
+//        for(int j = 0; j < features[i].size(); j++) {
+//            featuresArray[i][j] = features[i][j];
+//        }
+//    }
+//    
+//    float *classesArray;
+//    classesArray = (float *) malloc(sampleSize * 2 * sizeof(float));
+//    for(int i = 0; i < sampleSize * 2; i++)
+//        classesArray[i] = classes[i];
+//    
+//    for(int i = 0; i < features.size(); i++) {
+//        for(int j = 0; j < features[i].size(); j++) {
+//            if(featuresArray[i][j] != features[i][j])
+//                cout << "FAIL" << endl;
+//        }
+//    }
+//    
+//    Mat trainingData(sampleSize * 2, 540, CV_32FC1, &featuresArray);
+//    Mat classLabels(sampleSize * 2, 1, CV_32FC1, classesArray);
+//    
+//    CvSVMParams params;
+//    params.svm_type = CvSVM::C_SVC;
+//    params.kernel_type = CvSVM::LINEAR;
+//    params.term_crit = cvTermCriteria(CV_TERMCRIT_ITER, 100, 1e-6);
+//
+//    CvSVM SVM;
+//    SVM.train(trainingData, classLabels, Mat(), Mat(), params);
+//    SVM.save((OUTPUT_PATH + "svm_data.dat").c_str());
+//    
+//    // 4 positive and 4 negative samples
+//    for(int i = 25; i < 29; i++) {
+//        HOGDescriptor hog;
+//        hog.winSize = Size(32, 48);
+//        
+//        Mat letterImage = imread(OUTPUT_PATH + "Y/" + to_string(i) + ".png", CV_LOAD_IMAGE_GRAYSCALE);
+//        
+//        vector<float> featureVector;
+//        hog.compute(letterImage, featureVector, Size(8, 8), Size(0, 0));
+//        
+//        float *f;
+//        f = (float *) malloc(540 * sizeof(float));
+//        for(int i = 0; i < 540; i++)
+//            f[i] = featureVector[i];
+//        
+//        Mat testSample(1, 540, CV_32FC1, &f);
+//        
+//        float result = SVM.predict(testSample);
+//        
+//        cout << "Predikcia: " << result << endl;
+//        
+//        free(f);
+//        featureVector.clear();
+//        letterImage.release();
+//    }
     
     return 0;
 }
