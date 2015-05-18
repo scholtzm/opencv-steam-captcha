@@ -5,10 +5,12 @@
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
 
+#include "main.hpp"
 #include "imagereconstruct.hpp"
 #include "image.hpp"
 #include "segments.hpp"
 #include "descriptors.hpp"
+#include "classify.hpp"
 #include "misc.hpp"
 
 using namespace std;
@@ -136,8 +138,12 @@ int main(int argc, char** argv) {
     }
     
     Mat trainingData, classLabels;
+    
+#if SIMPLE_DESCRIPTORS == 1
     getSimpleDescriptors(trainingData, classLabels, OUTPUT_PATH, "G", "Y", 25);
-//    getHOGDescriptors(trainingData, classLabels, OUTPUT_PATH, "G", "Y", 25);
+#else
+    getHOGDescriptors(trainingData, classLabels, OUTPUT_PATH, "G", "Y", 25);
+#endif
    
     CvSVMParams params;
     params.svm_type = CvSVM::C_SVC;
@@ -146,116 +152,33 @@ int main(int argc, char** argv) {
     
     CvSVM SVM;
     SVM.train(trainingData, classLabels, Mat(), Mat(), params);
-    SVM.save((OUTPUT_PATH + "svm_data.dat").c_str());
     
+    int success = 0;
     for(int i = 25; i < 29; i++) {
         Mat letterImage = imread(OUTPUT_PATH + "G/" + to_string(i) + ".png", CV_LOAD_IMAGE_GRAYSCALE);
+        float result = classify(SVM, letterImage);
         
-        float *f = (float *) malloc(32 * 48 * sizeof(float));
-
-        for(int j = 0; j < letterImage.rows; j++)
-            for(int k = 0; k < letterImage.cols; k++)
-                f[j * letterImage.cols + k] = ((float) letterImage.at<unsigned char>(j, k)) / 255.0;
+        if(result == 1) {
+            cout << "Letter G classified as: G" << endl;
+            success++;
+        } else
+            cout << "Letter G classified as: Y" << endl;
         
-        Mat testSample(1, 32 * 48, CV_32FC1, f);
+        letterImage.release();
         
-        float result = SVM.predict(testSample);
+        letterImage = imread(OUTPUT_PATH + "Y/" + to_string(i) + ".png", CV_LOAD_IMAGE_GRAYSCALE);
+        result = classify(SVM, letterImage);
         
-        cout << "Predikcia: " << result << endl;
+        if(result == -1) {
+            cout << "Letter Y classified as: Y" << endl;
+            success++;
+        } else
+            cout << "Letter Y classified as: G" << endl;
         
-        free(f);
         letterImage.release();
     }
     
-    
-//    // HoG and SVM
-//    vector<vector<float> > features;
-//    vector<float> classes;
-//    
-//    int sampleSize = 25;
-//    
-//    for(int i = 0; i < sampleSize; i++) {
-//        HOGDescriptor hog;
-//        hog.winSize = Size(32, 48);
-//        
-//        vector<float> featureVector;
-//        vector<float> featureVector2;
-//        
-//        Mat posImage = imread(OUTPUT_PATH + "G/" + to_string(i) + ".png", CV_LOAD_IMAGE_GRAYSCALE);
-//        if (!posImage.data)
-//            break;
-//        hog.compute(posImage, featureVector, Size(8, 8), Size(0, 0));
-//        features.push_back(featureVector);
-//        classes.push_back(1.0);
-//        
-//        Mat negImage = imread(OUTPUT_PATH + "Y/" + to_string(i) + ".png", CV_LOAD_IMAGE_GRAYSCALE);
-//        if (!negImage.data)
-//            break;
-//        hog.compute(negImage, featureVector2, Size(8, 8), Size(0, 0));
-//        features.push_back(featureVector2);
-//        classes.push_back(-1.0);
-//    }
-//    
-//    float **featuresArray;
-//    featuresArray = (float **) malloc(sampleSize * 2 * sizeof(float *));
-//    for (int i = 0; i < sampleSize * 2; i++)
-//        featuresArray[i] = (float *) malloc(540 *sizeof(float));
-//    
-//    for(int i = 0; i < features.size(); i++) {
-//        for(int j = 0; j < features[i].size(); j++) {
-//            featuresArray[i][j] = features[i][j];
-//        }
-//    }
-//    
-//    float *classesArray;
-//    classesArray = (float *) malloc(sampleSize * 2 * sizeof(float));
-//    for(int i = 0; i < sampleSize * 2; i++)
-//        classesArray[i] = classes[i];
-//    
-//    for(int i = 0; i < features.size(); i++) {
-//        for(int j = 0; j < features[i].size(); j++) {
-//            if(featuresArray[i][j] != features[i][j])
-//                cout << "FAIL" << endl;
-//        }
-//    }
-//    
-//    Mat trainingData(sampleSize * 2, 540, CV_32FC1, &featuresArray);
-//    Mat classLabels(sampleSize * 2, 1, CV_32FC1, classesArray);
-//    
-//    CvSVMParams params;
-//    params.svm_type = CvSVM::C_SVC;
-//    params.kernel_type = CvSVM::LINEAR;
-//    params.term_crit = cvTermCriteria(CV_TERMCRIT_ITER, 100, 1e-6);
-//
-//    CvSVM SVM;
-//    SVM.train(trainingData, classLabels, Mat(), Mat(), params);
-//    SVM.save((OUTPUT_PATH + "svm_data.dat").c_str());
-//    
-//    // 4 positive and 4 negative samples
-//    for(int i = 25; i < 29; i++) {
-//        HOGDescriptor hog;
-//        hog.winSize = Size(32, 48);
-//        
-//        Mat letterImage = imread(OUTPUT_PATH + "Y/" + to_string(i) + ".png", CV_LOAD_IMAGE_GRAYSCALE);
-//        
-//        vector<float> featureVector;
-//        hog.compute(letterImage, featureVector, Size(8, 8), Size(0, 0));
-//        
-//        float *f;
-//        f = (float *) malloc(540 * sizeof(float));
-//        for(int i = 0; i < 540; i++)
-//            f[i] = featureVector[i];
-//        
-//        Mat testSample(1, 540, CV_32FC1, &f);
-//        
-//        float result = SVM.predict(testSample);
-//        
-//        cout << "Predikcia: " << result << endl;
-//        
-//        free(f);
-//        featureVector.clear();
-//        letterImage.release();
-//    }
+    cout << "Success rate: " << success << "/8" << endl;
     
     return 0;
 }

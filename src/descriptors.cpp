@@ -3,6 +3,31 @@
 using namespace cv;
 using namespace std;
 
+void getSimpleDescriptor(Mat& image, Mat& descriptor) {
+    float *floatMatrix = (float *) malloc(image.cols * image.rows * sizeof(float));
+    
+    for(int j = 0; j < image.rows; j++)
+        for(int k = 0; k < image.cols; k++)
+            floatMatrix[j * image.cols + k] = ((float) image.at<unsigned char>(j, k)) / 255.0;
+    
+    descriptor = Mat(1, image.cols * image.rows, CV_32FC1, floatMatrix);
+    
+    free(floatMatrix);
+}
+
+void getHOGDescriptor(Mat& image, Mat& descriptor) {
+    vector<float> features;
+    
+    HOGDescriptor hog;
+    hog.winSize = Size(32, 48);
+    
+    hog.compute(image, features, Size(8, 8), Size(0, 0));
+    
+    descriptor = Mat(1, (int) features.size(), CV_32FC1, features.data());
+    
+    features.clear();
+}
+
 void getSimpleDescriptors(Mat& trainingData, Mat& classLabels, string folder, string posLetter, string negLetter, int sampleSize) {
     Mat image;
     
