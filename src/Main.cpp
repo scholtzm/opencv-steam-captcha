@@ -7,6 +7,7 @@
 
 #include "imagereconstruct.hpp"
 #include "segments.hpp"
+#include "misc.hpp"
 
 using namespace std;
 using namespace cv;
@@ -37,39 +38,14 @@ void createHistogram(Mat& src) {
     }
 }
 
-bool createFolderStructure(string output_folder) {
-    std::vector<string> strings = {
-        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-        "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
-        "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
-        "U", "V", "W", "X", "Y", "Z", "at", "and", "pct"
-    };
-    
-    fs::path folder(output_folder);
-    if(!exists(folder) && !fs::create_directory(folder))
-        return false;
-    
-    for(int i = 0; i < strings.size(); i++) {
-        fs::path dir(output_folder + strings[i]);
-        
-        if(exists(dir))
-            continue;
-        
-        if(!fs::create_directory(dir))
-            return false;
-    }
-    
-    return true;
-}
-
 int main(int argc, char** argv) {
     const int RESIZE_FACTOR = 2;
     const string DATA_PATH = "/Users/Mike/Documents/Eclipse Workspace/SCB3/data/";
     const string OUTPUT_PATH = "/Users/Mike/Documents/Eclipse Workspace/SCB3/output/";
-    const string ALLOWED_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ@&%";
     
-    int total = 0;
-    
+    // 0, 1, 5, 6, I, O and S are never used
+    const string ALLOWED_CHARS = "234789ABCDEFGHJKLMNPQRTUVWXYZ@&%";
+        
     // Initialize character counters
     map<string, int> counter;
     for(int i = 0; i < ALLOWED_CHARS.length(); i++) {
@@ -83,7 +59,7 @@ int main(int argc, char** argv) {
         return -1;
     
     // Create output folder structure
-    if(!createFolderStructure(OUTPUT_PATH))
+    if(!createFolderStructure(OUTPUT_PATH, ALLOWED_CHARS))
         return -1;
     
     fs::directory_iterator endItr;
@@ -97,12 +73,7 @@ int main(int argc, char** argv) {
         
         // Retrieve captcha string
         string captchaCode = boost::replace_all_copy(fileName, ".png", "");
-        boost::replace_all(captchaCode, "at", "@");
-        boost::replace_all(captchaCode, "pct", "%");
-        boost::replace_all(captchaCode, "and", "&");
-        
-        total++;
-        //cout << total << ".) file: " << fileName << ", code: " << captchaCode << endl;
+        captchaCode = aliasToSpecialChar(captchaCode);
         
         // Load our base image
         sourceImage = imread(fullPath, CV_LOAD_IMAGE_GRAYSCALE);
@@ -180,9 +151,6 @@ int main(int argc, char** argv) {
         sourceImage.release();
         finalImage.release();
         tmp.release();
-        
-        if(total == 1000)
-            break;
     }
 
     int sampleSize = 25;
