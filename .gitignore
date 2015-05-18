@@ -1,8 +1,10 @@
 # Folders
 Debug
+output
 
 # Individual files
 .DS_Store
 *.xcodeproj
 .project
 .cproject
+*.dat

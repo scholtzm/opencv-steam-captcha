@@ -14,9 +14,6 @@ using namespace std;
 using namespace cv;
 namespace fs = boost::filesystem;
 
-Mat sourceImage, finalImage, histImage, tmp;
-Mat hist;
-
 int main(int argc, char** argv) {
     const int RESIZE_FACTOR = 2;
     const string DATA_PATH = "/Users/Mike/Documents/Eclipse Workspace/SCB3/data/";
@@ -24,6 +21,12 @@ int main(int argc, char** argv) {
     
     // 0, 1, 5, 6, I, O and S are never used
     const string ALLOWED_CHARS = "234789ABCDEFGHJKLMNPQRTUVWXYZ@&%";
+    
+    // Images
+    Mat sourceImage, finalImage, histImage, tmp;
+    Mat histogram;
+    
+    int total = 0;
         
     // Initialize character counters
     map<string, int> counter;
@@ -49,6 +52,8 @@ int main(int argc, char** argv) {
         // Skip all dot files
         if(fileName[0] == '.')
             continue;
+        
+        total++;
         
         // Retrieve captcha string
         string captchaCode = boost::replace_all_copy(fileName, ".png", "");
@@ -78,18 +83,13 @@ int main(int argc, char** argv) {
         normalize(finalImage, finalImage, 0, 255, NORM_MINMAX, CV_8U);
         
         // Let's calculate histogram for our image
-        hist = createHistogram(finalImage, histImage);
-        
-        // Get lower bound of our threshold value
-        int thresholdValueLow = 0;
-        for(int i = 0; i < 256; i++) {
-            if(cvRound(hist.at<float>(i)) > 4) {
-                thresholdValueLow = i;
-            }
-        }
+        histogram = createHistogram(finalImage);
         
         // Calculate final threshold value
-        int thresholdValue = thresholdValueLow + (int)((255 - thresholdValueLow) / 10 * 4);
+        int thresholdValue = getIdealThreshold(histogram);
+        
+        // Draw histogram image
+        histImage = drawHistogram(histogram, thresholdValue);
         
         // Apply binary threshold
         threshold(finalImage, finalImage, thresholdValue, 255, THRESH_BINARY);
@@ -114,7 +114,6 @@ int main(int argc, char** argv) {
         vector<Rectangle> squares = takeRectangles(shrinkRectangles(finalImage, getRectangles(verticalPairs, horizontalPairs)), 6);
         
         // Save the squares
-        saveRectangles(sourceImage, squares, OUTPUT_PATH, captchaCode, counter);
         
         // Let's draw the rectangles
         drawRectangles(finalImage, squares);
@@ -122,14 +121,16 @@ int main(int argc, char** argv) {
         
 //        imshow("Final image", finalImage);
 //        imshow("Source image", sourceImage);
-        //        imshow("HSeg", segHImage);
-        //        imshow("VSeg", segVImage);
+////        imshow("HSeg", segHImage);
+////        imshow("VSeg", segVImage);
 //        imshow("Histogram", histImage);
-        //waitKey();
+//        waitKey();
         
         sourceImage.release();
         finalImage.release();
         tmp.release();
+        
+//        if(total == 20) break;
     }
 
     int sampleSize = 25;
@@ -172,7 +173,7 @@ int main(int argc, char** argv) {
     SVM.save((OUTPUT_PATH + "svm_data.dat").c_str());
     
     for(int i = 25; i < 29; i++) {
-        Mat letterImage = imread(OUTPUT_PATH + "G/" + to_string(i) + ".png", CV_LOAD_IMAGE_GRAYSCALE);
+        Mat letterImage = imread(OUTPUT_PATH + "Y/" + to_string(i) + ".png", CV_LOAD_IMAGE_GRAYSCALE);
         
         float *f = (float *) malloc(32 * 48 * sizeof(float));
 

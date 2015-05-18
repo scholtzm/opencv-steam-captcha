@@ -6,6 +6,14 @@
 using namespace std;
 using namespace cv;
 
+bool compareSquaresBySize(Rectangle a, Rectangle b) {
+    return a.width * a.height > b.width * b.height;
+}
+
+bool compareSquaresById(Rectangle a, Rectangle b) {
+    return a.id < b.id;
+}
+
 int* horizontalSegments(Mat& src) {
     int* seg = (int*) calloc(src.cols, sizeof(int));
     
@@ -116,7 +124,7 @@ vector<pair<int, int> > filterVerticalPairs(vector<pair<int, int> > verticalPair
 
 vector<pair<int, int> > filterHorizontalPairs(vector<pair<int, int> > horizontalPairs, int segSize) {
     const int MAGIC_DIFF = 10;
-    const int MAGIC_SIZE = 12;
+    const int MAGIC_SIZE = 14;
     
     vector<pair<int, int> > new_pairs;
     
@@ -142,7 +150,7 @@ vector<pair<int, int> > filterHorizontalPairs(vector<pair<int, int> > horizontal
                         seg[k] = 1;
                 }
             }
-            // This one is large enough
+        // This one is large enough
         } else {
             for(int k = horizontalPairs[i].first; k <= horizontalPairs[i].second; k++)
                 seg[k] = 1;
@@ -223,14 +231,6 @@ vector<Rectangle> shrinkRectangles(Mat& image, vector<Rectangle> squares) {
     }
     
     return new_squares;
-}
-
-bool compareSquaresBySize(Rectangle a, Rectangle b) {
-    return a.width * a.height > b.width * b.height;
-}
-
-bool compareSquaresById(Rectangle a, Rectangle b) {
-    return a.id < b.id;
 }
 
 vector<Rectangle> takeRectangles(vector<Rectangle> squares, int number) {

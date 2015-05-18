@@ -6,6 +6,8 @@
 using namespace cv;
 using namespace std;
 
-Mat createHistogram(Mat& source, Mat& histogramImage);
+Mat createHistogram(Mat& source);
+Mat drawHistogram(Mat& histogram, int marker);
+int getIdealThreshold(Mat& histogram);
 
 #endif
