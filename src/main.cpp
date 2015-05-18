@@ -8,6 +8,7 @@
 #include "imagereconstruct.hpp"
 #include "image.hpp"
 #include "segments.hpp"
+#include "descriptors.hpp"
 #include "misc.hpp"
 
 using namespace std;
@@ -23,7 +24,7 @@ int main(int argc, char** argv) {
     const string ALLOWED_CHARS = "234789ABCDEFGHJKLMNPQRTUVWXYZ@&%";
     
     // Images
-    Mat sourceImage, finalImage, histImage, tmp;
+    Mat sourceImage, finalImage, histogramImage;
     Mat histogram;
     
     int total = 0;
@@ -76,8 +77,10 @@ int main(int argc, char** argv) {
         adaptiveThreshold(finalImage, finalImage, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 3, 1);
         
         // Use the thresholded image as a mask
+        Mat tmp;
         sourceImage.copyTo(tmp, finalImage);
         tmp.copyTo(finalImage);
+        tmp.release();
         
         // Normalize new image
         normalize(finalImage, finalImage, 0, 255, NORM_MINMAX, CV_8U);
@@ -89,7 +92,7 @@ int main(int argc, char** argv) {
         int thresholdValue = getIdealThreshold(histogram);
         
         // Draw histogram image
-        histImage = drawHistogram(histogram, thresholdValue);
+        histogramImage = drawHistogram(histogram, thresholdValue);
         
         // Apply binary threshold
         threshold(finalImage, finalImage, thresholdValue, 255, THRESH_BINARY);
@@ -123,45 +126,18 @@ int main(int argc, char** argv) {
 //        imshow("Source image", sourceImage);
 ////        imshow("HSeg", segHImage);
 ////        imshow("VSeg", segVImage);
-//        imshow("Histogram", histImage);
+//        imshow("Histogram", histogramImage);
 //        waitKey();
         
         sourceImage.release();
         finalImage.release();
-        tmp.release();
         
 //        if(total == 20) break;
     }
-
-    int sampleSize = 25;
     
-    Mat trainingData(sampleSize * 2, 32 * 48, CV_32FC1);
-    Mat classLabels(sampleSize * 2, 1, CV_32FC1);
-    
-    for(int i = 0; i < sampleSize; i++) {
-        Mat posImage = imread(OUTPUT_PATH + "G/" + to_string(i) + ".png", CV_LOAD_IMAGE_GRAYSCALE);
-        if (!posImage.data)
-            break;
-        
-        for(int j = 0; j < posImage.rows; j++)
-            for(int k = 0; k < posImage.cols; k++)
-                trainingData.at<float>(i * 2, j * posImage.cols + k) = ((float) posImage.at<unsigned char>(j, k)) / 255.0;
-        
-        classLabels.at<float>(i * 2, 0) = 1.0;
-        
-        Mat negImage = imread(OUTPUT_PATH + "Y/" + to_string(i) + ".png", CV_LOAD_IMAGE_GRAYSCALE);
-        if (!negImage.data)
-            break;
-        
-        for(int j = 0; j < negImage.rows; j++)
-            for(int k = 0; k < negImage.cols; k++)
-                trainingData.at<float>(i * 2 + 1, j * negImage.cols + k) = ((float) negImage.at<unsigned char>(j, k)) / 255.0;
-        
-        classLabels.at<float>(i * 2 + 1, 0) = -1.0;
-        
-        posImage.release();
-        negImage.release();
-    }
+    Mat trainingData, classLabels;
+    getSimpleDescriptors(trainingData, classLabels, OUTPUT_PATH, "G", "Y", 25);
+//    getHOGDescriptors(trainingData, classLabels, OUTPUT_PATH, "G", "Y", 25);
    
     CvSVMParams params;
     params.svm_type = CvSVM::C_SVC;
@@ -173,7 +149,7 @@ int main(int argc, char** argv) {
     SVM.save((OUTPUT_PATH + "svm_data.dat").c_str());
     
     for(int i = 25; i < 29; i++) {
-        Mat letterImage = imread(OUTPUT_PATH + "Y/" + to_string(i) + ".png", CV_LOAD_IMAGE_GRAYSCALE);
+        Mat letterImage = imread(OUTPUT_PATH + "G/" + to_string(i) + ".png", CV_LOAD_IMAGE_GRAYSCALE);
         
         float *f = (float *) malloc(32 * 48 * sizeof(float));
 
