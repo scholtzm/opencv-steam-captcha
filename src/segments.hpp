@@ -1,3 +1,6 @@
+#ifndef _SEGMENTS_H_
+#define _SEGMENTS_H_
+
 #include <opencv2/opencv.hpp>
 
 using namespace cv;
@@ -40,3 +43,5 @@ void saveRectangles(Mat& image, vector<Rectangle> squares, string output_folder,
  * Obsolete: Use drawSquares instead.
  */
 void drawSegmentRectangles(Mat& image, vector<pair<int, int> > verticalPairs, vector<pair<int, int> > horizontalPairs);
+
+#endif

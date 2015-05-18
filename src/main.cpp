@@ -6,6 +6,7 @@
 #include <boost/algorithm/string.hpp>
 
 #include "imagereconstruct.hpp"
+#include "image.hpp"
 #include "segments.hpp"
 #include "misc.hpp"
 
@@ -15,28 +16,6 @@ namespace fs = boost::filesystem;
 
 Mat sourceImage, finalImage, histImage, tmp;
 Mat hist;
-
-void createHistogram(Mat& src) {
-    int histSize = 256;
-    float range[] = { 0, 256 };
-    const float *ranges[] = { range };
-    calcHist(&src, 1, 0, Mat(), hist, 1, &histSize, ranges, true, false);
-    
-    // Let's draw our histogram
-    int histHeight = 512;
-    int histWidth = 512;
-    int widthBucket = cvRound((double) histWidth/histSize);
-    
-    histImage = Mat(histHeight, histWidth, CV_32FC3, Scalar(0));
-    normalize(hist, hist, 0, histImage.rows, NORM_MINMAX, -1, Mat());
-    
-    for(int i = 1; i < histSize; i++)
-    {
-        line(histImage, Point(widthBucket * (i - 1), histHeight - cvRound(hist.at<float>(i - 1))) ,
-             Point(widthBucket * i, histHeight - cvRound(hist.at<float>(i))),
-             Scalar(255, 255, 255), 1);
-    }
-}
 
 int main(int argc, char** argv) {
     const int RESIZE_FACTOR = 2;
@@ -99,7 +78,7 @@ int main(int argc, char** argv) {
         normalize(finalImage, finalImage, 0, 255, NORM_MINMAX, CV_8U);
         
         // Let's calculate histogram for our image
-        createHistogram(finalImage);
+        hist = createHistogram(finalImage, histImage);
         
         // Get lower bound of our threshold value
         int thresholdValueLow = 0;
@@ -112,7 +91,7 @@ int main(int argc, char** argv) {
         // Calculate final threshold value
         int thresholdValue = thresholdValueLow + (int)((255 - thresholdValueLow) / 10 * 4);
         
-        // Apply threshold
+        // Apply binary threshold
         threshold(finalImage, finalImage, thresholdValue, 255, THRESH_BINARY);
         
         // Morphological closing
