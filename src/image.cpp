@@ -38,13 +38,16 @@ Mat drawHistogram(Mat& histogram, int marker) {
 }
 
 int getIdealThreshold(Mat& histogram) {
+    const int MAGIC_PEAK = 200;
+    const int MAGIC_PERCENTAGE = 4;
+    
     int lastPeak = 0;
     
     for(int i = 0; i < HISTSIZE; i++) {
-        if(cvRound(histogram.at<float>(i)) > 200) {
+        if(cvRound(histogram.at<float>(i)) > MAGIC_PEAK) {
             lastPeak = i;
         }
     }
     
-    return lastPeak + (int)((255 - lastPeak) / 10 * 4);
+    return lastPeak + (int)((255 - lastPeak) / 10 * MAGIC_PERCENTAGE);
 }

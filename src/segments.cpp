@@ -197,7 +197,6 @@ vector<Rectangle> getRectangles(vector<pair<int, int> > verticalPairs, vector<pa
     return squares;
 }
 
-// image must be a binary image
 vector<Rectangle> shrinkRectangles(Mat& image, vector<Rectangle> squares) {
     vector<Rectangle> new_squares;
     

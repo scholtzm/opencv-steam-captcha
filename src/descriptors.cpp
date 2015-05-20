@@ -28,7 +28,7 @@ void getHOGDescriptor(Mat& image, Mat& descriptor) {
     features.clear();
 }
 
-void getSimpleDescriptors(Mat& trainingData, Mat& classLabels, string folder, string posLetter, string negLetter, int sampleSize) {
+void getSimpleTrainingData(Mat& trainingData, Mat& classLabels, string folder, string posLetter, string negLetter, int sampleSize) {
     Mat image;
     
     // Get dimensions first
@@ -66,7 +66,7 @@ void getSimpleDescriptors(Mat& trainingData, Mat& classLabels, string folder, st
     }
 }
 
-void getHOGDescriptors(Mat& trainingData, Mat& classLabels, string folder, string posLetter, string negLetter, int sampleSize) {
+void getHOGTrainingData(Mat& trainingData, Mat& classLabels, string folder, string posLetter, string negLetter, int sampleSize) {
     Mat image;
     vector<float> features;
     

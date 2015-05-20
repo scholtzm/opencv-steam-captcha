@@ -29,8 +29,6 @@ int main(int argc, char** argv) {
     Mat sourceImage, finalImage, histogramImage;
     Mat histogram;
     
-    int total = 0;
-        
     // Initialize character counters
     map<string, int> counter;
     for(int i = 0; i < ALLOWED_CHARS.length(); i++) {
@@ -55,8 +53,6 @@ int main(int argc, char** argv) {
         // Skip all dot files
         if(fileName[0] == '.')
             continue;
-        
-        total++;
         
         // Retrieve captcha string
         string captchaCode = boost::replace_all_copy(fileName, ".png", "");
@@ -83,9 +79,6 @@ int main(int argc, char** argv) {
         sourceImage.copyTo(tmp, finalImage);
         tmp.copyTo(finalImage);
         tmp.release();
-        
-        // Normalize new image
-        normalize(finalImage, finalImage, 0, 255, NORM_MINMAX, CV_8U);
         
         // Let's calculate histogram for our image
         histogram = createHistogram(finalImage);
@@ -119,32 +112,38 @@ int main(int argc, char** argv) {
         vector<Rectangle> squares = takeRectangles(shrinkRectangles(finalImage, getRectangles(verticalPairs, horizontalPairs)), 6);
         
         // Save the squares
+        saveRectangles(sourceImage, squares, OUTPUT_PATH, captchaCode, counter);
         
         // Let's draw the rectangles
         drawRectangles(finalImage, squares);
         drawRectangles(sourceImage, squares);
         
-//        imshow("Final image", finalImage);
-//        imshow("Source image", sourceImage);
-////        imshow("HSeg", segHImage);
-////        imshow("VSeg", segVImage);
-//        imshow("Histogram", histogramImage);
-//        waitKey();
+        /*
+        // Display the images if necessary
+         
+        imshow("Final image", finalImage);
+        imshow("Source image", sourceImage);
+        imshow("HSeg", segHImage);
+        imshow("VSeg", segVImage);
+        imshow("Histogram", histogramImage);
+        waitKey();
+        */
         
         sourceImage.release();
         finalImage.release();
-        
-//        if(total == 20) break;
     }
     
     Mat trainingData, classLabels;
     
+    // Create training data
 #if SIMPLE_DESCRIPTORS == 1
-    getSimpleDescriptors(trainingData, classLabels, OUTPUT_PATH, "G", "Y", 25);
+    getSimpleTrainingData(trainingData, classLabels, OUTPUT_PATH, "G", "Y", 25);
 #else
-    getHOGDescriptors(trainingData, classLabels, OUTPUT_PATH, "G", "Y", 25);
+    getHOGTrainingData(trainingData, classLabels, OUTPUT_PATH, "G", "Y", 25);
 #endif
    
+    // This part is highly simplified and was mostly done just to test
+    // classification based on two characters with the highest frequency
     CvSVMParams params;
     params.svm_type = CvSVM::C_SVC;
     params.kernel_type = CvSVM::LINEAR;
@@ -177,6 +176,9 @@ int main(int argc, char** argv) {
         
         letterImage.release();
     }
+    
+    trainingData.release();
+    classLabels.release();
     
     cout << "Success rate: " << success << "/8" << endl;
     

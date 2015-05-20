@@ -31,7 +31,7 @@ vector<pair<int, int> > filterHorizontalPairs(vector<pair<int, int> > horizontal
 vector<pair<int, int> > splitLarge(vector<pair<int, int> > horizontalSegments);
 
 /**
- * Functions to create, manipulate and draw rectangles around letters.
+ * Functions to create, manipulate, draw and save rectangles around letters.
  */
 vector<Rectangle> getRectangles(vector<pair<int, int> > verticalPairs, vector<pair<int, int> > horizontalPairs);
 vector<Rectangle> shrinkRectangles(Mat& image, vector<Rectangle> squares);
