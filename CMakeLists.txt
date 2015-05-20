@@ -1,6 +1,6 @@
 # Setup
 cmake_minimum_required( VERSION 2.8 )
-project( "Steam Captcha Breaker" )
+project( "Steam Captcha Solver" )
 
 # Find OpenCV
 find_package( OpenCV REQUIRED )
