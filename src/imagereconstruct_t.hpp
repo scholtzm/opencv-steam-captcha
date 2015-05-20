@@ -60,22 +60,26 @@ void ImageReconstruct(Mat& marker, Mat& mask)
             if(tempMarkerImage.at<T>(row, col+1) < currentPixel &&
                tempMarkerImage.at<T>(row, col+1) < tempMaskImage.at<T>(row, col+1))
             {
-                queue.push({ row, col });
+                Pixel p = { row, col };
+                queue.push(p);
             }
             else if(tempMarkerImage.at<T>(row+1, col+1) < currentPixel &&
                     tempMarkerImage.at<T>(row+1, col+1) < tempMaskImage.at<T>(row+1, col+1))
             {
-                queue.push({ row, col });
+                Pixel p = { row, col };
+                queue.push(p);
             }
             else if(tempMarkerImage.at<T>(row+1, col) < currentPixel &&
                     tempMarkerImage.at<T>(row+1, col) < tempMaskImage.at<T>(row+1, col))
             {
-                queue.push({ row, col });
+                Pixel p = { row, col };
+                queue.push(p);
             }
             else if(tempMarkerImage.at<T>(row+1, col-1) < currentPixel &&
                     tempMarkerImage.at<T>(row+1, col-1) < tempMaskImage.at<T>(row+1, col-1))
             {
-                queue.push({ row, col });
+                Pixel p = { row, col };
+                queue.push(p);
             }
         }
     }
@@ -105,7 +109,8 @@ void PropagationStep(Mat& marker, Mat& mask ,int x, int y, int offsetX, int offs
 {
     if(marker.at<T>(x+offsetX, y+offsetY) < marker.at<T>(x, y)) {
         if(mask.at<T>(x+offsetX, y+offsetY) != marker.at<T>(x+offsetX, y+offsetY)) {
-            queue.push({ x+offsetX, y+offsetY });
+            Pixel p = { x+offsetX, y+offsetY };
+            queue.push(p);
             
             if(mask.at<T>(x+offsetX, y+offsetY) < marker.at<T>(x, y)) {
                 marker.at<T>(x+offsetX, y+offsetY) = mask.at<T>(x+offsetX, y+offsetY);

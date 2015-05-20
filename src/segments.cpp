@@ -190,7 +190,8 @@ vector<Rectangle> getRectangles(vector<pair<int, int> > verticalPairs, vector<pa
     
     for(vector<pair<int, int> >::iterator itV = verticalPairs.begin(); itV != verticalPairs.end(); itV++) {
         for(vector<pair<int, int> >::iterator itH = horizontalPairs.begin(); itH != horizontalPairs.end(); itH++) {
-            squares.push_back({ id++, itH->first, itV->first, itH->second - itH->first, itV->second - itV->first });
+            Rectangle r = { id++, itH->first, itV->first, itH->second - itH->first, itV->second - itV->first };
+            squares.push_back(r);
         }
     }
     
@@ -224,7 +225,8 @@ vector<Rectangle> shrinkRectangles(Mat& image, vector<Rectangle> squares) {
         bottom += 1;
         right += 1;
         
-        new_squares.push_back({ squares[i].id, squares[i].x + left, squares[i].y + top, right - left, bottom - top });
+        Rectangle r = { squares[i].id, squares[i].x + left, squares[i].y + top, right - left, bottom - top };
+        new_squares.push_back(r);
         tmp.release();
         tmp2.release();
     }

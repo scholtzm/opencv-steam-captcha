@@ -1,6 +1,7 @@
 # Folders
 Debug
 output
+build
 
 # Individual files
 .DS_Store
