@@ -2,7 +2,7 @@
 
 ![alt tag](https://raw.githubusercontent.com/scholtzm/opencv-steam-captcha/master/data/2GCZ4A.png)
 
-This is an experimental/learning project which attemps to solve the captcha used at steamcommunity.com. This project is currently just a proof of concept and *does not* solve the captcha completely.
+This is an experimental/learning project which attempts to solve the captcha used at steamcommunity.com. This project is currently just a proof of concept and *does not* solve the captcha completely.
 
 ### Data
 
